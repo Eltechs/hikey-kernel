@@ -600,8 +600,6 @@ static int __dwc3_gadget_ep_enable(struct dwc3_ep *dep,
 	u32			reg;
 	int			ret;
 
-	dwc3_trace(trace_dwc3_gadget, "Enabling %s", dep->name);
-
 	if (!(dep->flags & DWC3_EP_ENABLED)) {
 		ret = dwc3_gadget_start_config(dwc, dep);
 		if (ret)
@@ -630,7 +628,7 @@ static int __dwc3_gadget_ep_enable(struct dwc3_ep *dep,
 		init_waitqueue_head(&dep->wait_end_transfer);
 
 		if (usb_endpoint_xfer_control(desc))
-			return 0;
+			goto out;
 
 		/* Initialize the TRB ring */
 		dep->trb_dequeue = 0;
@@ -677,6 +675,10 @@ static int __dwc3_gadget_ep_enable(struct dwc3_ep *dep,
 		WARN_ON_ONCE(!dep->resource_index);
 	}
 
+
+out:
+	trace_dwc3_gadget_ep_enable(dep);
+
 	return 0;
 }
 
@@ -714,7 +716,7 @@ static int __dwc3_gadget_ep_disable(struct dwc3_ep *dep)
 	struct dwc3		*dwc = dep->dwc;
 	u32			reg;
 
-	dwc3_trace(trace_dwc3_gadget, "Disabling %s", dep->name);
+	trace_dwc3_gadget_ep_disable(dep);
 
 	dwc3_remove_requests(dwc, dep);
 
