@@ -96,8 +96,6 @@ static int dwc3_ep0_start_trans(struct dwc3 *dwc, u8 epnum)
 		return 0;
 	}
 
-	dwc3_ep0_prepare_one_trb(dwc, epnum, buf_dma, len, type, chain);
-
 	memset(&params, 0, sizeof(params));
 	params.param0 = upper_32_bits(dwc->ep0_trb_addr);
 	params.param1 = lower_32_bits(dwc->ep0_trb_addr);
