@@ -62,8 +62,6 @@ static void dwc3_ep0_prepare_one_trb(struct dwc3 *dwc, u8 epnum,
 	struct dwc3_ep			*dep;
 
 	dep = dwc->eps[epnum];
-	if (dep->flags & DWC3_EP_BUSY)
-		return 0;
 
 	trb = &dwc->ep0_trb[dep->trb_enqueue];
 
@@ -95,9 +93,10 @@ static int dwc3_ep0_start_trans(struct dwc3 *dwc, u8 epnum)
 
 	dep = dwc->eps[epnum];
 	if (dep->flags & DWC3_EP_BUSY) {
-		dwc3_trace(trace_dwc3_ep0, "%s still busy", dep->name);
 		return 0;
 	}
+
+	dwc3_ep0_prepare_one_trb(dwc, epnum, buf_dma, len, type, chain);
 
 	memset(&params, 0, sizeof(params));
 	params.param0 = upper_32_bits(dwc->ep0_trb_addr);
