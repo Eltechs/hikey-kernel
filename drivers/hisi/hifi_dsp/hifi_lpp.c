@@ -902,6 +902,7 @@ static int hifi_dsp_write_param(unsigned long arg)
 static int hifi_misc_open(struct inode *finode, struct file *fd)
 {
 	logi("open device.\n");
+	load_hifi_img_by_misc();
 	return OK;
 }
 

@@ -32,8 +32,11 @@
 #include "hifi_lpp.h"
 #include "hifi_om.h"
 #include "drv_mailbox_msg.h"
+#include <linux/hisi/hisi_rproc.h>
 #include <dsm/dsm_pub.h>
 #include <linux/hisi/rdr_pub.h>
+#include <linux/delay.h>
+#include <linux/firmware.h>
 
 #define HI_DECLARE_SEMAPHORE(name) \
 	struct semaphore name = __SEMAPHORE_INITIALIZER(name, 0)
@@ -728,7 +731,7 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 
 	BUG_ON(cmd_str == NULL);
 
-	msg_len = sizeof(hifi_str_cmd) + size + 1;	/*add 1 for last \0*/
+	msg_len = sizeof(hifi_str_cmd) + size + 1;	/*add 1 for last \0 */
 
 	pcmd = (hifi_str_cmd *) kmalloc(msg_len, GFP_ATOMIC);
 	if (!pcmd) {
@@ -832,6 +835,160 @@ static const struct file_operations hifi_dspfaultinject_proc_ops = {
 	.write = hifi_dsp_fault_inject_store,
 };
 
+struct image_partition_table addr_remap_tables[] = {
+	{HIFI_RUN_DDR_REMAP_BASE, HIFI_RUN_DDR_REMAP_BASE + HIFI_RUN_SIZE,
+	 HIFI_RUN_SIZE, HIFI_RUN_LOCATION},
+	{HIFI_TCM_PHY_BEGIN_ADDR, HIFI_TCM_PHY_END_ADDR, HIFI_TCM_SIZE,
+	 HIFI_IMAGE_TCMBAK_LOCATION},
+	{HIFI_OCRAM_PHY_BEGIN_ADDR, HIFI_OCRAM_PHY_END_ADDR, HIFI_OCRAM_SIZE,
+	 HIFI_IMAGE_OCRAMBAK_LOCATION}
+};
+
+extern void *memcpy64(void *dst, const void *src, unsigned len);
+extern void *memcpy128(void *dst, const void *src, unsigned len);
+
+void *memcpy_aligned(void *_dst, const void *_src, unsigned len)
+{
+	unsigned char *dst = _dst;
+	const unsigned char *src = _src;
+	unsigned int length = len;
+	unsigned int cpy_len;
+
+	if (((unsigned long)dst % 16 == 0) && ((unsigned long)src % 16 == 0)
+	    && (length >= 16)) {
+		cpy_len = length & 0xFFFFFFF0;
+		memcpy128(dst, src, cpy_len);
+		length = length % 16;
+		dst = dst + cpy_len;
+		src = src + cpy_len;
+
+		if (length == 0)
+			return _dst;
+	}
+
+	if (((unsigned long)dst % 8 == 0) && ((unsigned long)src % 8 == 0)
+	    && (length >= 8)) {
+		cpy_len = length & 0xFFFFFFF8;
+		memcpy64(dst, src, cpy_len);
+		length = length % 8;
+		dst = dst + cpy_len;
+		src = src + cpy_len;
+		if (length == 0)
+			return _dst;
+	}
+
+	if (((unsigned long)dst % 4 == 0) && ((unsigned long)src % 4 == 0)) {
+		cpy_len = length >> 2;
+		while (cpy_len-- > 0) {
+			*(unsigned int *)dst = *(unsigned int *)src;
+			dst += 4;
+			src += 4;
+		}
+		length = length % 4;
+		if (length == 0)
+			return _dst;
+	}
+
+	while (length-- > 0)
+		*dst++ = *src++;
+
+	return _dst;
+}
+
+static int read_hifi_shared_addr(void)
+{
+	unsigned int *read_hifi_shared_addr = NULL;
+	int ret = 0;
+
+	loge(" Enter %s\n", __func__);
+	read_hifi_shared_addr = ioremap_wc(0x8B300000, 50);
+	if (read_hifi_shared_addr == NULL) {
+		loge(" %s(): read_hifi_shared_addr ioremap_wc failed\n",
+		     __func__);
+	} else {
+		loge(" 0x8B300000:0x%x \n", readl(read_hifi_shared_addr));
+		iounmap(read_hifi_shared_addr);
+		read_hifi_shared_addr = NULL;
+	}
+	loge(" %s():Exit\n", __func__);
+	return ret;
+}
+
+int load_hifi_img_by_misc(void)
+{
+	unsigned int i = 0;
+	char *img_buf = NULL;
+	struct drv_hifi_image_head *hifi_img = NULL;
+	const struct firmware *hifi_firmware;
+
+	if (g_om_data.dsp_loaded == true)
+		return 0;
+
+	loge("load hifi image now\n");
+
+	if (request_firmware(&hifi_firmware, "hifi/hifi.img", g_om_data.dev) < 0) {
+		loge("could not find firmware file hifi/hifi.img\n");
+		return -ENOENT;
+	}
+
+	img_buf = (char *)hifi_firmware->data;
+
+	hifi_img = (struct drv_hifi_image_head *)img_buf;
+	logi("sections_num:%u, image_size:%u\n", hifi_img->sections_num,
+	     hifi_img->image_size);
+
+	for (i = 0; i < hifi_img->sections_num; i++) {
+		unsigned int index = 0;
+		unsigned long remap_dest_addr = 0;
+
+		logi("sections_num:%u, i:%u\n", hifi_img->sections_num, i);
+		logi("des_addr:0x%x, load_attib:%u, size:%u, sn:%hu, src_offset:%x, type:%u\n", hifi_img->sections[i].des_addr, hifi_img->sections[i].load_attib, hifi_img->sections[i].size, hifi_img->sections[i].sn, hifi_img->sections[i].src_offset, hifi_img->sections[i].type);
+
+		remap_dest_addr = (unsigned long)hifi_img->sections[i].des_addr;
+		if (remap_dest_addr >= HIFI_OCRAM_PHY_BEGIN_ADDR
+		    && remap_dest_addr <= HIFI_OCRAM_PHY_END_ADDR) {
+			index = 2;
+		} else if (remap_dest_addr >= HIFI_TCM_PHY_BEGIN_ADDR
+			   && remap_dest_addr <= HIFI_TCM_PHY_END_ADDR) {
+			index = 1;
+		} else {	/*(remap_addr >= HIFI_DDR_PHY_BEGIN_ADDR && remap_addr <= HIFI_DDR_PHY_END_ADDR) */
+			index = 0;
+		}
+		remap_dest_addr -=
+		    addr_remap_tables[index].phy_addr_start -
+		    addr_remap_tables[index].remap_addr;
+
+		if (hifi_img->sections[i].type != DRV_HIFI_IMAGE_SEC_TYPE_BSS) {
+			unsigned int *iomap_dest_addr = NULL;
+
+			if (hifi_img->sections[i].load_attib ==
+			    (unsigned char)DRV_HIFI_IMAGE_SEC_UNLOAD) {
+				logi("unload section\n");
+				continue;
+			}
+
+			iomap_dest_addr =
+			    (unsigned int *)ioremap(remap_dest_addr,
+						    hifi_img->sections[i].size);
+			if (!iomap_dest_addr) {
+				loge("ioremap failed\n");
+				release_firmware(hifi_firmware);
+				return -1;
+			}
+			memcpy_aligned((void *)(iomap_dest_addr),
+				       (void *)((char *)hifi_img +
+						hifi_img->sections[i].
+						src_offset),
+				       hifi_img->sections[i].size);
+			iounmap(iomap_dest_addr);
+		}
+	}
+
+	g_om_data.dsp_loaded = true;
+	release_firmware(hifi_firmware);
+	return 0;
+}
+
 #define RESET_OPTION_LEN 100
 
 static ssize_t hifi_dsp_reset_option_show(struct file *file, char __user *buf,
@@ -843,7 +1000,11 @@ static ssize_t hifi_dsp_reset_option_show(struct file *file, char __user *buf,
 		loge("Input param buf is invalid\n");
 		return -EINVAL;
 	}
-
+	if (load_hifi_img_by_misc() == 0) {
+		g_om_data.dsp_loaded = true;
+		read_hifi_shared_addr();
+		loge("g_om_data.dsp_loaded:%d\n", (int)g_om_data.dsp_loaded);
+	}
 	snprintf(reset_option, RESET_OPTION_LEN,
 		 "reset_option: 0(reset mediasever) 1(reset system) current:%d.\n",
 		 g_om_data.reset_system);
@@ -1126,7 +1287,7 @@ void hifi_om_init(struct platform_device *pdev,
 	g_om_data.dsp_time_stamp =
 	    (unsigned int *)ioremap(SYS_TIME_STAMP_REG, 0x4);
 	if (NULL == g_om_data.dsp_time_stamp) {
-		pr_err("time stamp reg ioremap Error.\n");	/*can't use logx*/
+		pr_err("time stamp reg ioremap Error.\n");	/*can't use logx */
 		return;
 	}
 
@@ -1288,8 +1449,8 @@ void hifi_om_effect_mcps_info_show(struct hifi_om_effect_mcps_stru
 		    ID_EFFECT_ALGO_BUTT
 		    && hifi_mcps_info->effect_mcps_info[i].effect_algo_id >
 		    ID_EFFECT_ALGO_START) {
-			switch (hifi_mcps_info->effect_mcps_info[i].
-				effect_stream_id) {
+			switch (hifi_mcps_info->
+				effect_mcps_info[i].effect_stream_id) {
 			case AUDIO_STREAM_PCM_OUTPUT:
 				logw("Algorithm: %s, Mcps: %d, Stream: PCM_OUTPUT \n", effect_algo[hifi_mcps_info->effect_mcps_info[i].effect_algo_id - 1].effect_name, hifi_mcps_info->effect_mcps_info[i].effect_algo_mcps);
 				break;

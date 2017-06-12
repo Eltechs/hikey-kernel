@@ -47,6 +47,7 @@ extern "C" {
 #define HIFI_OM_FILE_LIMIT		0640
 #define HIFI_OM_LOG_SIZE_MAX	0x400000	/* 4*1024*1024 = 4M */
 #define HIFI_OM_FILE_BUFFER_SIZE_MAX	(1024)
+#define HIFI_SEC_MAX_NUM 64
 
 	typedef enum {
 		DUMP_DSP_LOG,
@@ -69,21 +70,21 @@ extern "C" {
 	} DUMP_DSP_INDEX;
 
 	enum HIFI_CPU_LOAD_INFO_ENUM {
-		HIFI_CPU_LOAD_REPORT = 0,	
-		HIFI_CPU_LOAD_VOTE_UP,	
-		HIFI_CPU_LOAD_VOTE_DOWN,	
-		HIFI_CPU_LOAD_LACK_PERFORMANCE,	
+		HIFI_CPU_LOAD_REPORT = 0,
+		HIFI_CPU_LOAD_VOTE_UP,
+		HIFI_CPU_LOAD_VOTE_DOWN,
+		HIFI_CPU_LOAD_LACK_PERFORMANCE,
 		HIFI_CPU_LOAD_INFO_BUTT
 	};
 
 	enum HIFI_CPU_OM_INFO_ENUM {
-		HIFI_CPU_OM_LOAD_INFO = 0,	
-		HIFI_CPU_OM_ALGO_MCPS_INFO,	
-		HIFI_CPU_OM_UPDATE_BUFF_DELAY_INFO,
+		HIFI_CPU_OM_LOAD_INFO = 0,
+		HIFI_CPU_OM_ALGO_MCPS_INFO,
+		HIFI_CPU_OM_UPDATE_BUFF_DELAY_INFO,	/* audio pcm play or capture update buff delay */
 		HIFI_CPU_OM_INFO_BUTT
 	};
-	enum EFFECT_ALGO_ENUM {	
-		    ID_EFFECT_ALGO_START = 0,
+	enum EFFECT_ALGO_ENUM {
+		ID_EFFECT_ALGO_START = 0,
 		ID_EFFECT_ALGO_FORMATER,
 		ID_EFFECT_ALGO_FORTE_VOICE_SPKOUT,
 		ID_EFFECT_ALGO_FORTE_VOICE_MICIN,
@@ -136,6 +137,46 @@ extern "C" {
 		AUDIO_STREAM_VOICE_INPUT,
 		AUDIO_STREAM_VOICEPP_INPUT,
 		AUDIO_STREAM_INPUT_CNT,
+	};
+
+	enum DRV_HIFI_IMAGE_SEC_LOAD_ENUM {
+		DRV_HIFI_IMAGE_SEC_LOAD_STATIC = 0,
+		DRV_HIFI_IMAGE_SEC_LOAD_DYNAMIC,
+		DRV_HIFI_IMAGE_SEC_UNLOAD,
+		DRV_HIFI_IMAGE_SEC_UNINIT,
+		DRV_HIFI_IMAGE_SEC_LOAD_BUTT,
+	};
+	typedef unsigned char DRV_HIFI_IMAGE_SEC_LOAD_ENUM_UINT8;
+
+	enum DRV_HIFI_IMAGE_SEC_TYPE_ENUM {
+		DRV_HIFI_IMAGE_SEC_TYPE_CODE = 0,
+		DRV_HIFI_IMAGE_SEC_TYPE_DATA,
+		DRV_HIFI_IMAGE_SEC_TYPE_BSS,
+		DRV_HIFI_IMAGE_SEC_TYPE_BUTT,
+	};
+	typedef unsigned char DRV_HIFI_IMAGE_SEC_TYPE_ENUM_UINT8;
+
+	struct drv_hifi_image_sec {
+		unsigned short sn;
+		DRV_HIFI_IMAGE_SEC_TYPE_ENUM_UINT8 type;
+		DRV_HIFI_IMAGE_SEC_LOAD_ENUM_UINT8 load_attib;
+		unsigned int src_offset;
+		unsigned int des_addr;
+		unsigned int size;
+	};
+
+	struct drv_hifi_image_head {
+		char time_stamp[24];
+		unsigned int image_size;
+		unsigned int sections_num;
+		struct drv_hifi_image_sec sections[HIFI_SEC_MAX_NUM];
+	};
+
+	struct image_partition_table {
+		unsigned long phy_addr_start;
+		unsigned long phy_addr_end;
+		unsigned int size;
+		unsigned long remap_addr;
 	};
 
 	struct hifi_om_s {
@@ -331,6 +372,7 @@ do {\
 	int hifi_om_get_voice_bsd_param(void __user *uaddr);
 	void hifi_om_rev_data_handle(int type, const unsigned char *addr,
 				     unsigned int len);
+	int load_hifi_img_by_misc(void);
 
 #ifdef __cplusplus
 #if __cplusplus

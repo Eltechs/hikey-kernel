@@ -39,10 +39,10 @@ extern "C" {
 #define SIZE_LIMIT_PARAM		(512)
 #endif
 
-#define NVPARAM_COUNT        400	/*HIFI NV size is 400*/
-#define NVPARAM_NUMBER       258	/*256+2, nv_data(256) + nv_id(2)*/
-#define NVPARAM_START        2	/*head protect_number 0x5a5a5a5a*/
-#define NVPARAM_TAIL         2	/*tail protect_number 0x5a5a5a5a*/
+#define NVPARAM_COUNT        400	/*HIFI NV size is 400 */
+#define NVPARAM_NUMBER       258	/*256+2, nv_data(256) + nv_id(2) */
+#define NVPARAM_START        2	/*head protect_number 0x5a5a5a5a */
+#define NVPARAM_TAIL         2	/*tail protect_number 0x5a5a5a5a */
 #define NVPARAM_TOTAL_SIZE   ((NVPARAM_NUMBER * NVPARAM_COUNT + NVPARAM_START + NVPARAM_TAIL) * sizeof(unsigned short))
 
 #ifdef CONFIG_HISI_FAMA
@@ -178,6 +178,14 @@ extern "C" {
 
 #define HIFI_OCRAM_BASE_ADDR                    (0xE8000000)
 #define HIFI_TCM_BASE_ADDR                      (0xE8058000)
+#define HIFI_RUN_DDR_REMAP_BASE         (0xC0000000)
+#define HIFI_TCM_PHY_BEGIN_ADDR         (HIFI_TCM_BASE_ADDR)
+#define HIFI_TCM_PHY_END_ADDR	(HIFI_TCM_PHY_BEGIN_ADDR + HIFI_TCM_SIZE - 1)
+#define HIFI_TCM_SIZE		(HIFI_RUN_ITCM_SIZE + HIFI_RUN_DTCM_SIZE)
+
+#define HIFI_OCRAM_PHY_BEGIN_ADDR       (HIFI_OCRAM_BASE_ADDR)
+#define HIFI_OCRAM_PHY_END_ADDR	(HIFI_OCRAM_PHY_BEGIN_ADDR + HIFI_OCRAM_SIZE - 1)
+#define HIFI_OCRAM_SIZE                 (HIFI_IMAGE_OCRAMBAK_SIZE)
 
 #define SIZE_PARAM_PRIV                         (206408)	/*refer from function dsp_nv_init in dsp_soc_para_ctl.c  */
 #define HIFI_SYS_MEM_ADDR                       (HIFI_RUN_LOCATION)
