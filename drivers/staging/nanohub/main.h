@@ -21,7 +21,6 @@
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/semaphore.h>
-#include <linux/wakelock.h>
 
 #include "comms.h"
 #include "bl.h"
@@ -69,7 +68,7 @@ struct nanohub_data {
 	atomic_t thread_state;
 	wait_queue_head_t kthread_wait;
 
-	struct wake_lock wakelock_read;
+	struct wakeup_source wakesrc_read;
 
 	struct nanohub_io free_pool;
 

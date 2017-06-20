@@ -1224,7 +1224,7 @@ static void nanohub_process_buffer(struct nanohub_data *data,
 	/* (for wakeup interrupts): hold a wake lock for 250ms so the sensor hal
 	 * has time to grab its own wake lock */
 	if (wakeup)
-		wake_lock_timeout(&data->wakelock_read, msecs_to_jiffies(250));
+		__pm_wakeup_event(&data->wakesrc_read, 250);
 	release_wakeup(data);
 }
 
@@ -1626,8 +1626,7 @@ struct iio_dev *nanohub_probe(struct device *dev, struct iio_dev *iio_dev)
 	for (i = 0; i < READ_QUEUE_DEPTH; i++)
 		nanohub_io_put_buf(&data->free_pool, &buf[i]);
 	atomic_set(&data->kthread_run, 0);
-	wake_lock_init(&data->wakelock_read, WAKE_LOCK_SUSPEND,
-		       "nanohub_wakelock_read");
+	wakeup_source_init(&data->wakesrc_read, "nanohub_wakelock_read");
 
 	atomic_set(&data->lock_mode, LOCK_MODE_NONE);
 	atomic_set(&data->wakeup_cnt, 0);
@@ -1664,7 +1663,7 @@ fail_dev:
 fail_irq:
 	nanohub_release_gpios_irqs(data);
 fail_gpio:
-	wake_lock_destroy(&data->wakelock_read);
+	wakeup_source_trash(&data->wakesrc_read);
 	vfree(buf);
 fail_vma:
 	if (own_iio_dev)
@@ -1698,7 +1697,7 @@ int nanohub_remove(struct iio_dev *iio_dev)
 	nanohub_destroy_devices(data);
 	iio_device_unregister(iio_dev);
 	nanohub_release_gpios_irqs(data);
-	wake_lock_destroy(&data->wakelock_read);
+	wakeup_source_trash(&data->wakesrc_read);
 	vfree(data->vbuf);
 	iio_device_free(iio_dev);
 
