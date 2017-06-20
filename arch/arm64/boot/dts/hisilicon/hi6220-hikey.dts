@@ -97,6 +97,16 @@
 				};
 			};
 		};
+		hardware_cfg_spidev_dma0 {
+			overlay_0 {
+				fragment@0 {
+					target-path="/soc/spi@f7106000/spidev_dma@0";
+					__overlay__ {
+						status = "ok";
+					};
+				};
+			};
+		};
 		hardware_cfg_cs_sd_qb {
 			overlay_0 {
 				fragment@0 { /* Select SD from Quick Bus */
