@@ -6,6 +6,14 @@
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ */
+
+/*
+ *
+ * Modifications made by Cadence Design Systems, Inc.  06/21/2017
+ * Copyright (C) 2017 Cadence Design Systems, Inc.All rights reserved worldwide.
+ *
  */
 
 #include <linux/kernel.h>
@@ -37,6 +45,7 @@
 #include <linux/hisi/rdr_pub.h>
 #include <linux/delay.h>
 #include <linux/firmware.h>
+#include "bsp_drv_ipc.h"
 
 #define HI_DECLARE_SEMAPHORE(name) \
 	struct semaphore name = __SEMAPHORE_INITIALIZER(name, 0)
@@ -731,6 +740,8 @@ static const struct file_operations hifi_debug_proc_ops = {
 #define HIKEY_DSP2AP_MSG_QUEUE_ADDR (HIKEY_AP2DSP_MSG_QUEUE_ADDR + HIKEY_AP2DSP_MSG_QUEUE_SIZE)
 #define HIKEY_DSP2AP_MSG_QUEUE_SIZE 0x1800
 
+#define HIKEY_AP_DSP_MSG_MAX_LEN 100
+
 struct hikey_ap2dsp_msg_head {
 	unsigned int head_protect_word;
 	unsigned int msg_num;
@@ -744,9 +755,34 @@ struct hikey_ap2dsp_msg_body {
 	char msg_content[0];
 };
 
+struct hikey_msg_with_content {
+	struct hikey_ap2dsp_msg_body msg_info;
+	char msg_content[HIKEY_AP_DSP_MSG_MAX_LEN];
+};
+
 static struct hikey_ap2dsp_msg_head *msg_head;
-static void hikey_init_share_mem(char *share_mem_addr,
-				 unsigned int share_mem_size)
+
+/*Interrupt receiver */
+#define IPC_ACPU_INT_SRC_HIFI_MSG  (1)
+typedef void (*VOIDFUNCCPTR)(unsigned int);
+static void _dsp_to_ap_ipc_irq_proc(void)
+{
+	loge("Enter %s\n", __func__);
+	/*clear interrupt */
+	DRV_k3IpcIntHandler_Autoack();
+	loge("Exit %s\n", __func__);
+}
+
+void ap_ipc_int_init(void)
+{
+	loge("Enter %s\n", __func__);
+	IPC_IntConnect(IPC_ACPU_INT_SRC_HIFI_MSG, (VOIDFUNCCPTR)_dsp_to_ap_ipc_irq_proc, IPC_ACPU_INT_SRC_HIFI_MSG);
+	IPC_IntEnable(IPC_ACPU_INT_SRC_HIFI_MSG);
+	loge("Exit %s\n", __func__);
+}
+
+
+static void hikey_init_share_mem(char *share_mem_addr, unsigned int share_mem_size)
 {
 	if (!share_mem_addr) {
 		loge("share memory is null\n");
@@ -811,11 +847,13 @@ static void hikey_ap2dsp_write_msg(struct hikey_ap2dsp_msg_body *hikey_msg)
 	loge("Exit %s\n", __func__);
 }
 
+
+
 static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 {
-	int ret = OK;
-	unsigned int msg_len = 0;
-	hifi_str_cmd *pcmd = NULL;
+	int           ret     = OK;
+	unsigned int  msg_len = 0;
+	hifi_str_cmd *pcmd    = NULL;
 	struct hikey_ap2dsp_msg_body *hikey_msg = NULL;
 	BUG_ON(cmd_str == NULL);
 
@@ -839,7 +877,6 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 				  msg_len);
 
 	kfree(pcmd);
-
 	return ret;
 }
 

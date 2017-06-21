@@ -8,6 +8,13 @@
  * published by the Free Software Foundation.
  */
 
+/*
+ *
+ * Modifications made by Cadence Design Systems, Inc.  06/21/2017
+ * Copyright (C) 2017 Cadence Design Systems, Inc.All rights reserved worldwide.
+ *
+ */
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -1549,6 +1556,9 @@ static int hifi_misc_probe(struct platform_device *pdev)
 		loge("hifi mailbox handle func register fail.\n");
 		goto ERR;
 	}
+
+	/*Register for interrupt from DSP*/
+	ap_ipc_int_init();
 
 	OUT_FUNCTION;
 	return OK;

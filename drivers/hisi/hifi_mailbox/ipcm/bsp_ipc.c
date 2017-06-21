@@ -1,3 +1,9 @@
+/*
+ *
+ * Modifications made by Cadence Design Systems, Inc.  06/21/2017
+ * Copyright (C) 2017 Cadence Design Systems, Inc.All rights reserved worldwide.
+ *
+ */
 
 #include <linux/module.h>
 #include <asm/io.h>
@@ -174,11 +180,33 @@ static irqreturn_t DRV_k3IpcIntHandler_ack(int irq, void *dev_id)
 		}
 		K3_IPC_DCLR(ipcBase, mailBoxNum) = BIT_ENABLE(mailBoxNum);
 	}
-
-	return (irqreturn_t) IRQ_RETVAL(retval);
+	return (irqreturn_t)IRQ_RETVAL(retval);
 }
 
 #endif
+
+irqreturn_t DRV_k3IpcIntHandler_Autoack(void)
+{
+	BSP_S32 retval = IRQ_HANDLED;
+	BSP_U32 u32IntStat = 0;
+
+	int myRole = K3_IPC_CORE_IS_RECEIVE;
+	BSP_U32 mailBoxNum = k3IpcConfig[myRole].mailBoxNum;
+	BSP_U32 source = k3IpcConfig[myRole].sourceCore;
+	void __iomem *ipcBase = k3IpcConfig[myRole].ipcBase;
+
+	u32IntStat = K3_IPC_CPUIMST(ipcBase, source);
+
+	if (u32IntStat & BIT_ENABLE(mailBoxNum)) {
+		if (K3_IPC_MODE(ipcBase, mailBoxNum) & BIT_ENABLE(K3_IPC_MODE_AUTOACK)) {
+			printk("func:%s: Receive autoack int\n", __func__);
+
+			K3_IPC_SOURCE(ipcBase, mailBoxNum) = BIT_ENABLE(source);
+		}
+		K3_IPC_DCLR(ipcBase, mailBoxNum) = BIT_ENABLE(mailBoxNum);
+	}
+	return (irqreturn_t)IRQ_RETVAL(retval);
+}
 
 BSP_S32 DRV_IPCIntInit(void)
 {

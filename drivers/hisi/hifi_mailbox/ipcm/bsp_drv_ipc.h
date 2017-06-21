@@ -1,9 +1,17 @@
 
+/*
+ *
+ * Modifications made by Cadence Design Systems, Inc.  06/21/2017
+ * Copyright (C) 2017 Cadence Design Systems, Inc.All rights reserved worldwide.
+ *
+ */
+
 #ifndef _BSP_DRV_IPC_H_
 #define _BSP_DRV_IPC_H_
 
 #include <asm/io.h>
 #include "drv_comm.h"
+#include <linux/interrupt.h>
 
 #include "../mailbox/mdrv_ipc_enum.h"
 
@@ -107,8 +115,9 @@ extern "C" {
 
 	BSP_VOID IPC_SpinLock(BSP_U32 u32SignalNum);
 
-	BSP_VOID IPC_SpinUnLock(BSP_U32 u32SignalNum);
+	BSP_VOID IPC_SpinUnLock (BSP_U32 u32SignalNum);
 	BSP_VOID IPC_SemGive_Ccore_All(BSP_VOID);
+	irqreturn_t DRV_k3IpcIntHandler_Autoack(void);
 
 #ifdef __cplusplus
 }

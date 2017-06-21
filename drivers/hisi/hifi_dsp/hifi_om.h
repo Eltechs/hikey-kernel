@@ -8,6 +8,13 @@
  * published by the Free Software Foundation.
  */
 
+/*
+ *
+ * Modifications made by Cadence Design Systems, Inc.  06/21/2017
+ * Copyright (C) 2017 Cadence Design Systems, Inc.All rights reserved worldwide.
+ *
+ */
+
 #ifndef __HIFI_OM_H__
 #define __HIFI_OM_H__
 
@@ -359,6 +366,7 @@ do {\
 	void hifi_dump_panic_log(void);
 
 	bool hifi_is_loaded(void);
+	oid ap_ipc_int_init(void);
 
 	void hifi_om_effect_mcps_info_show(struct hifi_om_effect_mcps_stru
 					   *hifi_mcps_info);
