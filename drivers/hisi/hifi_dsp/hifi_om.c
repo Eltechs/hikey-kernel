@@ -762,23 +762,73 @@ struct hikey_msg_with_content {
 
 static struct hikey_ap2dsp_msg_head *msg_head;
 
-/*Interrupt receiver */
-#define IPC_ACPU_INT_SRC_HIFI_MSG  (1)
-typedef void (*VOIDFUNCCPTR)(unsigned int);
-static void _dsp_to_ap_ipc_irq_proc(void)
+static void hikey_ap_mailbox_read_queue(
+			struct hikey_ap2dsp_msg_head *queue_head,
+			char *data, unsigned int size)
 {
-	loge("Enter %s\n", __func__);
-	/*clear interrupt */
-	DRV_k3IpcIntHandler_Autoack();
-	loge("Exit %s\n", __func__);
+	unsigned int size_to_bottom = 0;
+	struct hikey_ap2dsp_msg_head *hikey_msg_head = 0;
+
+	hikey_msg_head = (struct hikey_ap2dsp_msg_head *)((char *)(msg_head)+HIKEY_DSP2AP_MSG_QUEUE_SIZE);
+	size_to_bottom = (HIKEY_AP2DSP_MSG_QUEUE_SIZE - queue_head->read_pos);
+	if (size_to_bottom > size) {
+		memcpy(data, (char *)((char *)hikey_msg_head + queue_head->read_pos), size);
+		queue_head->read_pos += size;
+	} else {
+		memcpy(data, (char *)((char *)hikey_msg_head + queue_head->read_pos), size_to_bottom);
+		memcpy(data + size_to_bottom,
+		(char *)((char *)hikey_msg_head + sizeof(struct hikey_ap2dsp_msg_head)),
+		size - size_to_bottom);
+		queue_head->read_pos = sizeof(struct hikey_ap2dsp_msg_head) + (size - size_to_bottom);
+	}
+}
+int hikey_ap_mailbox_read(struct hikey_msg_with_content *hikey_msg)
+{
+	struct hikey_ap2dsp_msg_head *hikey_msg_head = 0;
+
+	if (!hikey_msg) {
+		loge("have no memory to save hikey msg\n");
+		return -1;
+	}
+
+	hikey_msg_head = (struct hikey_ap2dsp_msg_head *)((char *)(msg_head)+HIKEY_DSP2AP_MSG_QUEUE_SIZE);
+
+	if (hikey_msg_head->head_protect_word != HIKEY_MSG_HEAD_PROTECT_WORD) {
+		loge("hikey msg head protect word error,0x%x\n", hikey_msg_head->head_protect_word);
+		return -1;
+	}
+
+	hikey_ap_mailbox_read_queue(hikey_msg_head, (char *)hikey_msg, sizeof(struct hikey_ap2dsp_msg_body));
+
+	if (hikey_msg->msg_info.msg_id == 0 || hikey_msg->msg_info.msg_len > HIKEY_AP_DSP_MSG_MAX_LEN) {
+		loge("msg id error:0x%x, or msg len error:%u\n",
+					hikey_msg->msg_info.msg_id,
+					hikey_msg->msg_info.msg_len);
+		return -1;
+	}
+
+	hikey_ap_mailbox_read_queue(hikey_msg_head, hikey_msg->msg_content, hikey_msg->msg_info.msg_len);
+
+	return 0;
 }
 
-void ap_ipc_int_init(void)
+void hikey_ap_msg_process(struct hikey_msg_with_content *hikey_msg)
 {
-	loge("Enter %s\n", __func__);
-	IPC_IntConnect(IPC_ACPU_INT_SRC_HIFI_MSG, (VOIDFUNCCPTR)_dsp_to_ap_ipc_irq_proc, IPC_ACPU_INT_SRC_HIFI_MSG);
-	IPC_IntEnable(IPC_ACPU_INT_SRC_HIFI_MSG);
-	loge("Exit %s\n", __func__);
+	if (!hikey_msg) {
+		loge("hikey msg is null\n");
+		return;
+	}
+
+	switch (hikey_msg->msg_info.msg_id) {
+	case ID_AUDIO_AP_OM_CMD:
+		logi("msg str:%s\n", hikey_msg->msg_content);
+		break;
+	default:
+		loge("unknown msg id:0x%x\n", hikey_msg->msg_info.msg_id);
+		break;
+	}
+
+	return;
 }
 
 
@@ -847,6 +897,37 @@ static void hikey_ap2dsp_write_msg(struct hikey_ap2dsp_msg_body *hikey_msg)
 	loge("Exit %s\n", __func__);
 }
 
+/*Interrupt receiver */
+#define IPC_ACPU_INT_SRC_HIFI_MSG  (1)
+typedef void (*VOIDFUNCCPTR)(unsigned int);
+static void _dsp_to_ap_ipc_irq_proc(void)
+{
+	struct hikey_msg_with_content hikey_msg;
+
+	logi("Enter %s\n", __func__);
+	memset(&hikey_msg, 0, sizeof(struct hikey_msg_with_content));
+	if (hikey_ap_mailbox_read(&hikey_msg)) {
+		loge("read msg error\n");
+	} else {
+		logi("msg id:0x%x\n", hikey_msg.msg_info.msg_id);
+		hikey_ap_msg_process(&hikey_msg);
+	}
+
+	/*clear interrupt */
+	DRV_k3IpcIntHandler_Autoack();
+	logi("Exit %s\n", __func__);
+}
+
+void ap_ipc_int_init(void)
+{
+	logi("Enter %s\n", __func__);
+	IPC_IntConnect(IPC_ACPU_INT_SRC_HIFI_MSG,
+		(VOIDFUNCCPTR)_dsp_to_ap_ipc_irq_proc,
+				IPC_ACPU_INT_SRC_HIFI_MSG);
+	IPC_IntEnable(IPC_ACPU_INT_SRC_HIFI_MSG);
+	logi("Exit %s\n", __func__);
+}
+
 int send_pcm_data_to_dsp(void *buf, unsigned int size)
 {
 	int           ret     = OK;
@@ -887,7 +968,7 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 	int           ret     = OK;
 	unsigned int  msg_len = 0;
 	hifi_str_cmd *pcmd    = NULL;
-/*	unsigned char buf[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};*/
+	unsigned char buf[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
 	struct hikey_ap2dsp_msg_body *hikey_msg = NULL;
 	BUG_ON(cmd_str == NULL);
 
@@ -912,7 +993,7 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 
 	kfree(pcmd);
 	/*test code*/
-/*	send_pcm_data_to_dsp(buf, 8);*/
+	send_pcm_data_to_dsp(buf, 8);
 	return ret;
 }
 
