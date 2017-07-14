@@ -812,6 +812,9 @@ int hikey_ap_mailbox_read(struct hikey_msg_with_content *hikey_msg)
 	return 0;
 }
 
+
+static DECLARE_COMPLETION(msg_completion);
+
 void hikey_ap_msg_process(struct hikey_msg_with_content *hikey_msg)
 {
 	if (!hikey_msg) {
@@ -822,6 +825,7 @@ void hikey_ap_msg_process(struct hikey_msg_with_content *hikey_msg)
 	switch (hikey_msg->msg_info.msg_id) {
 	case ID_AUDIO_AP_OM_CMD:
 		logi("msg str:%s\n", hikey_msg->msg_content);
+		complete(&msg_completion);
 		break;
 	default:
 		loge("unknown msg id:0x%x\n", hikey_msg->msg_info.msg_id);
@@ -928,12 +932,13 @@ void ap_ipc_int_init(void)
 	logi("Exit %s\n", __func__);
 }
 
-int send_pcm_data_to_dsp(void *buf, unsigned int size)
+int send_pcm_data_to_dsp(void __user *buf, unsigned int size)
 {
 	int           ret     = OK;
 	unsigned int  msg_len = 0;
 	hifi_str_cmd *pcmd    = NULL;
 	unsigned char *music_buf = NULL;
+	unsigned char *pcm_buf = NULL;
 	struct hikey_ap2dsp_msg_body *hikey_msg = NULL;
 
 	msg_len = sizeof(hifi_str_cmd) + 100;
@@ -952,15 +957,29 @@ int send_pcm_data_to_dsp(void *buf, unsigned int size)
 	pcmd->str_len = sprintf(pcmd->str, "pcm_gain 0x%08x 0x%08x", HIFI_MUSIC_DATA_LOCATION, size);
 	hikey_msg = (struct hikey_ap2dsp_msg_body *)pcmd;
 	music_buf = (unsigned char *)ioremap_wc(HIFI_MUSIC_DATA_LOCATION, HIFI_MUSIC_DATA_SIZE);
-	memcpy(music_buf, buf, size);
+	ret = copy_from_user(music_buf, buf, size);
 	iounmap(music_buf);
+	if (ret) {
+		ret = -EINVAL;
+		loge("%s: couldn't copy buffer %p from user %p\n", __func__, music_buf, buf);
+		goto err_free;
+	}
 	hikey_ap2dsp_write_msg(hikey_msg);
 	ret = (int)mailbox_send_msg(MAILBOX_MAILCODE_ACPU_TO_HIFI_MISC, pcmd, msg_len);
-	music_buf = (unsigned char *)ioremap_wc(PCM_PLAY_BUFF_LOCATION, PCM_PLAY_BUFF_SIZE);
-	memcpy(buf, music_buf, size);
-	iounmap(music_buf);
+
+	wait_for_completion(&msg_completion);
+
+	pcm_buf  = (unsigned char *)ioremap_wc(PCM_PLAY_BUFF_LOCATION, PCM_PLAY_BUFF_SIZE);
+	ret = copy_to_user(buf, pcm_buf, size);
+	if (ret != 0) {
+		ret = -EINVAL;
+		loge("%s: couldn't copy buffer %p to user %p\n", __func__, pcm_buf, buf);
+	}
+	iounmap(pcm_buf);
+err_free:
 	kfree(pcmd);
 	return ret;
+
 }
 
 static int hifi_send_str_todsp(const char *cmd_str, size_t size)
@@ -968,7 +987,7 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 	int           ret     = OK;
 	unsigned int  msg_len = 0;
 	hifi_str_cmd *pcmd    = NULL;
-	unsigned char buf[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+/*	unsigned char buf[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};*/
 	struct hikey_ap2dsp_msg_body *hikey_msg = NULL;
 	BUG_ON(cmd_str == NULL);
 
@@ -993,7 +1012,7 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 
 	kfree(pcmd);
 	/*test code*/
-	send_pcm_data_to_dsp(buf, 8);
+/*	send_pcm_data_to_dsp(buf, 8);*/
 	return ret;
 }
 

@@ -939,6 +939,19 @@ static long hifi_misc_ioctl(struct file *fd, unsigned int cmd,
 	}
 
 	switch (cmd) {
+	case HIFI_MISC_IOCTL_PCM_GAIN: {
+		struct misc_io_pcm_buf_param buf;
+
+		logd("ioctl: HIFI_MISC_IOCTL_PCM_GAIN.\n");
+		if (copy_from_user(&buf, data32, sizeof(buf))) {
+			ret = -EINVAL;
+			logd("HIFI_MISC_IOCTL_PCM_GAIN: couldn't copy misc_io_pcm_buf_param\n");
+			break;
+		}
+		send_pcm_data_to_dsp((void *)buf.buf, buf.buf_size);
+		}
+		break;
+
 	case HIFI_MISC_IOCTL_ASYNCMSG:
 		logd("ioctl: HIFI_MISC_IOCTL_ASYNCMSG.\n");
 		ret = hifi_dsp_async_cmd((unsigned long)data32);

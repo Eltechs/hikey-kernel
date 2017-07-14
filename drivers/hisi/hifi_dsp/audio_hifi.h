@@ -208,6 +208,10 @@ struct voice_proxy_voice_encrypt_key_end {
 	bool encrypt_negotiation_result;
 	bool reserved2[3];
 };
+struct misc_io_pcm_buf_param {
+	uint64_t buf;
+	uint32_t buf_size;
+};
 /*
   *end
   */
@@ -223,6 +227,7 @@ struct voice_proxy_voice_encrypt_key_end {
 #define HIFI_MISC_IOCTL_WAKEUP_THREAD	_IOW('A',  0x78, unsigned int)
 #define HIFI_MISC_IOCTL_DISPLAY_MSG		_IOWR('A', 0x79, struct misc_io_dump_buf_param)
 #define HIFI_MISC_IOCTL_WAKEUP_PCM_READ_THREAD _IOW('A',  0x7a, unsigned int)
+#define HIFI_MISC_IOCTL_PCM_GAIN _IOW('A',  0x7b, struct misc_io_pcm_buf_param)
 
 #ifdef CLT_VOICE
 #define CLT_HIFI_MISC_IOCTL_SEND_VOICE _IOWR('A', 0x90, struct misc_io_async_param)

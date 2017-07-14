@@ -378,10 +378,9 @@ do {\
 
 	int hifi_get_dmesg(void __user *arg);
 	int hifi_om_get_voice_bsd_param(void __user *uaddr);
-	void hifi_om_rev_data_handle(int type, const unsigned char *addr,
-				     unsigned int len);
 	int load_hifi_img_by_misc(void);
 
+	int send_pcm_data_to_dsp(void __user *buf, unsigned int size);
 #ifdef __cplusplus
 #if __cplusplus
 }
