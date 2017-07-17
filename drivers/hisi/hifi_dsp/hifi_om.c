@@ -52,6 +52,8 @@
 HI_DECLARE_SEMAPHORE(hifi_log_sema);
 struct hifi_om_s g_om_data;
 static struct proc_dir_entry *hifi_debug_dir;
+bool hasData;
+
 #define MAX_LEVEL_STR_LEN 32
 #define UNCONFIRM_ADDR (0)
 static struct hifi_dsp_dump_info s_dsp_dump_info[] = {
@@ -826,6 +828,7 @@ void hikey_ap_msg_process(struct hikey_msg_with_content *hikey_msg)
 	case ID_AUDIO_AP_OM_CMD:
 		logi("msg str:%s\n", hikey_msg->msg_content);
 		complete(&msg_completion);
+		hasData = true;
 		break;
 	default:
 		loge("unknown msg id:0x%x\n", hikey_msg->msg_info.msg_id);
