@@ -259,7 +259,7 @@
 		};
 
 		gpio3: gpio@f8014000 {
-			gpio-line-names = "GPIO3_0", "NC", "NC", "", "NC", "",
+			gpio-line-names = "GPIO3_0", "NC", "NC", "", "NC",
 			"WLAN_ACTIVE", "NC", "NC";
 		};
 
@@ -296,7 +296,7 @@
 
 		gpio8: gpio@f7024000 {
 			gpio-line-names = "NC", "[CEC_CLK_19_2MHZ]", "NC",
-			"", "", "", "", "", "";
+			"", "", "", "", "";
 		};
 
 		gpio9: gpio@f7025000 {
