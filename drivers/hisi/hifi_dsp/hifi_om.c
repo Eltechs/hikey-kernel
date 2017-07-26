@@ -742,25 +742,7 @@ static const struct file_operations hifi_debug_proc_ops = {
 #define HIKEY_DSP2AP_MSG_QUEUE_ADDR (HIKEY_AP2DSP_MSG_QUEUE_ADDR + HIKEY_AP2DSP_MSG_QUEUE_SIZE)
 #define HIKEY_DSP2AP_MSG_QUEUE_SIZE 0x1800
 
-#define HIKEY_AP_DSP_MSG_MAX_LEN 100
 
-struct hikey_ap2dsp_msg_head {
-	unsigned int head_protect_word;
-	unsigned int msg_num;
-	unsigned int read_pos;
-	unsigned int write_pos;
-};
-
-struct hikey_ap2dsp_msg_body {
-	unsigned short msg_id;
-	unsigned short msg_len;
-	char msg_content[0];
-};
-
-struct hikey_msg_with_content {
-	struct hikey_ap2dsp_msg_body msg_info;
-	char msg_content[HIKEY_AP_DSP_MSG_MAX_LEN];
-};
 
 static struct hikey_ap2dsp_msg_head *msg_head;
 
@@ -800,7 +782,7 @@ int hikey_ap_mailbox_read(struct hikey_msg_with_content *hikey_msg)
 		return -1;
 	}
 
-	hikey_ap_mailbox_read_queue(hikey_msg_head, (char *)hikey_msg, sizeof(struct hikey_ap2dsp_msg_body));
+	hikey_ap_mailbox_read_queue(hikey_msg_head, (char *)hikey_msg, offsetof(struct hikey_ap2dsp_msg_body, msg_content));
 
 	if (hikey_msg->msg_info.msg_id == 0 || hikey_msg->msg_info.msg_len > HIKEY_AP_DSP_MSG_MAX_LEN) {
 		loge("msg id error:0x%x, or msg len error:%u\n",
@@ -809,7 +791,8 @@ int hikey_ap_mailbox_read(struct hikey_msg_with_content *hikey_msg)
 		return -1;
 	}
 
-	hikey_ap_mailbox_read_queue(hikey_msg_head, hikey_msg->msg_content, hikey_msg->msg_info.msg_len);
+	hikey_ap_mailbox_read_queue(hikey_msg_head, hikey_msg->msg_info.msg_content,
+			hikey_msg->msg_info.msg_len - offsetof(struct hikey_ap2dsp_msg_body, msg_content));
 
 	return 0;
 }
@@ -823,12 +806,17 @@ void hikey_ap_msg_process(struct hikey_msg_with_content *hikey_msg)
 		loge("hikey msg is null\n");
 		return;
 	}
-
 	switch (hikey_msg->msg_info.msg_id) {
 	case ID_AUDIO_AP_OM_CMD:
-		logi("msg str:%s\n", hikey_msg->msg_content);
 		complete(&msg_completion);
+		break;
+	case ID_XAF_DSP_TO_AP:
 		hasData = true;
+		loge("msg id:%x\n", hikey_msg->msg_info.msg_id);
+		loge("id:%x\n", hikey_msg->msg_info.xf_dsp_msg.id);
+		loge("opcode:%x\n", hikey_msg->msg_info.xf_dsp_msg.opcode);
+		loge("length:%x\n", hikey_msg->msg_info.xf_dsp_msg.length);
+		loge("address:%lx\n", (unsigned long)hikey_msg->msg_info.xf_dsp_msg.address);
 		break;
 	default:
 		loge("unknown msg id:0x%x\n", hikey_msg->msg_info.msg_id);
@@ -859,7 +847,6 @@ static void hikey_ap2dsp_write_msg(struct hikey_ap2dsp_msg_body *hikey_msg)
 	unsigned int size_to_bottom = 0;
 	unsigned int write_size = 0;
 
-	loge("Enter %s\n", __func__);
 	if (!msg_head) {
 		loge("hikey share memory not init\n");
 		return;
@@ -876,7 +863,7 @@ static void hikey_ap2dsp_write_msg(struct hikey_ap2dsp_msg_body *hikey_msg)
 		return;
 	}
 
-	write_size = hikey_msg->msg_len + sizeof(struct hikey_ap2dsp_msg_body);
+	write_size = hikey_msg->msg_len;
 	size_to_bottom = (HIKEY_DSP2AP_MSG_QUEUE_SIZE - msg_head->write_pos);
 
 	if (write_size >= HIKEY_DSP2AP_MSG_QUEUE_SIZE) {
@@ -901,7 +888,6 @@ static void hikey_ap2dsp_write_msg(struct hikey_ap2dsp_msg_body *hikey_msg)
 	}
 
 	msg_head->msg_num++;
-	loge("Exit %s\n", __func__);
 }
 
 /*Interrupt receiver */
@@ -911,18 +897,15 @@ static void _dsp_to_ap_ipc_irq_proc(void)
 {
 	struct hikey_msg_with_content hikey_msg;
 
-	logi("Enter %s\n", __func__);
 	memset(&hikey_msg, 0, sizeof(struct hikey_msg_with_content));
 	if (hikey_ap_mailbox_read(&hikey_msg)) {
 		loge("read msg error\n");
 	} else {
-		logi("msg id:0x%x\n", hikey_msg.msg_info.msg_id);
 		hikey_ap_msg_process(&hikey_msg);
 	}
 
 	/*clear interrupt */
 	DRV_k3IpcIntHandler_Autoack();
-	logi("Exit %s\n", __func__);
 }
 
 void ap_ipc_int_init(void)
@@ -935,88 +918,97 @@ void ap_ipc_int_init(void)
 	logi("Exit %s\n", __func__);
 }
 
-int send_pcm_data_to_dsp(void __user *buf, unsigned int size)
+int send_xaf_ipc_msg_to_dsp(struct xf_proxy_msg *xaf_msg)
 {
-	int           ret     = OK;
-	unsigned int  msg_len = 0;
-	hifi_str_cmd *pcmd    = NULL;
+	int ret;
 	unsigned char *music_buf = NULL;
-	unsigned char *pcm_buf = NULL;
-	struct hikey_ap2dsp_msg_body *hikey_msg = NULL;
+	struct hikey_ap2dsp_msg_body hikey_msg;
 
-	msg_len = sizeof(hifi_str_cmd) + 100;
-
-	if (WARN_ON(size > HIFI_MUSIC_DATA_SIZE))
+	if (WARN_ON(xaf_msg->length > HIFI_MUSIC_DATA_SIZE))
 		return -EINVAL;
 
-	pcmd = (hifi_str_cmd *)kmalloc(msg_len, GFP_ATOMIC);
+	hikey_msg.msg_id = ID_XAF_AP_TO_DSP;
+	hikey_msg.msg_len = sizeof(hikey_msg);
+	hikey_msg.xf_dsp_msg = *xaf_msg;
+	hikey_msg.xf_dsp_msg.address = HIFI_MUSIC_DATA_LOCATION;
 
-	if (!pcmd) {
-		loge("cmd malloc is null\n");
-		return -ENOMEM;
-	}
-
-	pcmd->msg_id = ID_AP_AUDIO_STR_CMD;
-	pcmd->str_len = sprintf(pcmd->str, "pcm_gain 0x%08x 0x%08x", HIFI_MUSIC_DATA_LOCATION, size);
-	hikey_msg = (struct hikey_ap2dsp_msg_body *)pcmd;
 	music_buf = (unsigned char *)ioremap_wc(HIFI_MUSIC_DATA_LOCATION, HIFI_MUSIC_DATA_SIZE);
-	ret = copy_from_user(music_buf, buf, size);
+	/* ...get proxy message from user-space */
+	if (copy_from_user(music_buf, (void __user *)xaf_msg->address, xaf_msg->length)) {
+		iounmap(music_buf);
+		loge("%s: couldn't copy buffer %p from user %p\n", __func__, music_buf, (void *)xaf_msg->address);
+		return -EINVAL;
+	}
 	iounmap(music_buf);
-	if (ret) {
-		ret = -EINVAL;
-		loge("%s: couldn't copy buffer %p from user %p\n", __func__, music_buf, buf);
-		goto err_free;
-	}
-	hikey_ap2dsp_write_msg(hikey_msg);
-	ret = (int)mailbox_send_msg(MAILBOX_MAILCODE_ACPU_TO_HIFI_MISC, pcmd, msg_len);
+	hikey_ap2dsp_write_msg(&hikey_msg);
+	ret = (int)mailbox_send_msg(MAILBOX_MAILCODE_ACPU_TO_HIFI_MISC, &hikey_msg, hikey_msg.msg_len);
 
-	wait_for_completion(&msg_completion);
-
-	pcm_buf  = (unsigned char *)ioremap_wc(PCM_PLAY_BUFF_LOCATION, PCM_PLAY_BUFF_SIZE);
-	ret = copy_to_user(buf, pcm_buf, size);
-	if (ret != 0) {
-		ret = -EINVAL;
-		loge("%s: couldn't copy buffer %p to user %p\n", __func__, pcm_buf, buf);
-	}
-	iounmap(pcm_buf);
-err_free:
-	kfree(pcmd);
 	return ret;
-
 }
+
+int read_xaf_ipc_msg_from_dsp(void *buf, unsigned int size)
+{
+	int           ret     = OK;
+	return ret;
+}
+
 
 static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 {
 	int           ret     = OK;
-	unsigned int  msg_len = 0;
-	hifi_str_cmd *pcmd    = NULL;
-/*	unsigned char buf[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};*/
-	struct hikey_ap2dsp_msg_body *hikey_msg = NULL;
+	struct hikey_ap2dsp_msg_body *hikey_msg = kmalloc(sizeof(*hikey_msg) + size, GFP_KERNEL);
+
+	if (!hikey_msg)
+		return -ENOMEM;
 	BUG_ON(cmd_str == NULL);
 
-	msg_len = sizeof(hifi_str_cmd) + size + 1;	/*add 1 for last \0 */
-
-	pcmd = (hifi_str_cmd *) kmalloc(msg_len, GFP_ATOMIC);
-	if (!pcmd) {
-		loge("cmd malloc is null\n");
-		return -ENOMEM;
-	}
-	memset(pcmd, 0, msg_len);
-
-	pcmd->msg_id = ID_AP_AUDIO_STR_CMD;
-	pcmd->str_len = size;
-	strncpy(pcmd->str, cmd_str, size);
-	hikey_msg = (struct hikey_ap2dsp_msg_body *)pcmd;
+	hikey_msg->msg_id = ID_AP_AUDIO_STR_CMD;
+	hikey_msg->msg_len = offsetof(struct hikey_ap2dsp_msg_body, msg_content) + size + 1;
+	memcpy(&hikey_msg->msg_content, cmd_str, size);
+	hikey_msg->msg_content[size] = 0;
 
 	hikey_ap2dsp_write_msg(hikey_msg);
-	ret =
-	    (int)mailbox_send_msg(MAILBOX_MAILCODE_ACPU_TO_HIFI_MISC, pcmd,
-				  msg_len);
+	ret = (int)mailbox_send_msg(MAILBOX_MAILCODE_ACPU_TO_HIFI_MISC, hikey_msg, hikey_msg->msg_len);
 
-	kfree(pcmd);
-	/*test code*/
-/*	send_pcm_data_to_dsp(buf, 8);*/
+	kfree(hikey_msg);
 	return ret;
+}
+int send_pcm_data_to_dsp(void __user *buf, unsigned int size)
+{
+	char cmd[40];
+	int           ret     = OK;
+	unsigned char *music_buf = NULL;
+	unsigned char *pcm_buf = NULL;
+
+	if (WARN_ON(size > HIFI_MUSIC_DATA_SIZE))
+		return -EINVAL;
+
+	music_buf = (unsigned char *)ioremap_wc(HIFI_MUSIC_DATA_LOCATION, HIFI_MUSIC_DATA_SIZE);
+	ret = copy_from_user(music_buf, buf, size);
+	iounmap(music_buf);
+	if (ret) {
+		loge("%s: couldn't copy buffer %p from user %p\n", __func__, music_buf, buf);
+		return -EINVAL;
+	}
+
+	sprintf(cmd, "pcm_gain 0x%08x 0x%08x", HIFI_MUSIC_DATA_LOCATION, size);
+	ret = hifi_send_str_todsp(cmd, strlen(cmd));
+
+	if (ret < 0)
+		return ret;
+
+	wait_for_completion(&msg_completion);
+	pcm_buf  = (unsigned char *)ioremap_wc(PCM_PLAY_BUFF_LOCATION, PCM_PLAY_BUFF_SIZE);
+	ret = copy_to_user(buf, pcm_buf, size);
+
+	if (ret != 0) {
+		ret = -EINVAL;
+		loge("%s: couldn't copy buffer %p to user %p\n", __func__, pcm_buf, buf);
+	}
+
+	iounmap(pcm_buf);
+	return ret;
+
 }
 
 static ssize_t hifi_dsp_fault_inject_show(struct file *file, char __user *buf,

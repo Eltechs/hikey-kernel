@@ -940,7 +940,9 @@ static long hifi_misc_ioctl(struct file *fd, unsigned int cmd,
 	}
 
 	switch (cmd) {
-	case HIFI_MISC_IOCTL_PCM_GAIN: {
+
+	case HIFI_MISC_IOCTL_PCM_GAIN:
+	{
 		struct misc_io_pcm_buf_param buf;
 
 		logd("ioctl: HIFI_MISC_IOCTL_PCM_GAIN.\n");
@@ -950,8 +952,36 @@ static long hifi_misc_ioctl(struct file *fd, unsigned int cmd,
 			break;
 		}
 		send_pcm_data_to_dsp((void *)buf.buf, buf.buf_size);
+	}
+	break;
+
+	case HIFI_MISC_IOCTL_XAF_IPC_MSG_SEND:
+	{
+		struct xf_proxy_msg xaf_msg;
+
+		logi("ioctl: HIFI_MISC_IOCTL_XAF_IPC_MSG_SEND.\n");
+		if (copy_from_user(&xaf_msg, data32, sizeof(xaf_msg))) {
+			ret = -EINVAL;
+			logd("HIFI_MISC_IOCTL_XAF_IPC_MSG_SEND: couldn't copy xf_proxy_msg\n");
+			break;
 		}
-		break;
+		send_xaf_ipc_msg_to_dsp(&xaf_msg);
+	}
+	break;
+
+	case HIFI_MISC_IOCTL_XAF_IPC_MSG_RECV:
+	{
+		struct xf_proxy_msg xaf_msg;
+
+		read_xaf_ipc_msg_from_dsp(&xaf_msg, xaf_msg.length);
+
+		logi("ioctl: HIFI_MISC_IOCTL_XAF_IPC_MSG_RECV.\n");
+		if (copy_to_user(data32, &xaf_msg, sizeof(xaf_msg))) {
+			ret = -EINVAL;
+			logd("HIFI_MISC_IOCTL_XAF_IPC_MSG_RECV: couldn't copy xf_proxy_msg\n");
+		}
+	}
+	break;
 
 	case HIFI_MISC_IOCTL_ASYNCMSG:
 		logd("ioctl: HIFI_MISC_IOCTL_ASYNCMSG.\n");
@@ -973,11 +1003,10 @@ static long hifi_misc_ioctl(struct file *fd, unsigned int cmd,
 		logd("ioctl: HIFI_MISC_IOCTL_SENDDATA_SYNC.\n");
 		ret = down_interruptible(&s_misc_sem);
 		if (ret != 0) {
-			loge("SENDDATA_SYNC wake up by other irq err:%d.\n",
-			     ret);
+			loge("SENDDATA_SYNC wake up by other irq err:%d.\n", ret);
 			goto out;
 		}
-		ret = hifi_dsp_senddata_sync_cmd((unsigned long)data32);	/*not used by now */
+		ret = hifi_dsp_senddata_sync_cmd((unsigned long)data32); /*not used by now*/
 		up(&s_misc_sem);
 		break;
 
@@ -986,7 +1015,7 @@ static long hifi_misc_ioctl(struct file *fd, unsigned int cmd,
 		ret = hifi_dsp_get_phys_cmd((unsigned long)data32);
 		break;
 
-	case HIFI_MISC_IOCTL_WRITE_PARAMS:	/* write algo param to hifi */
+	case HIFI_MISC_IOCTL_WRITE_PARAMS: /* write algo param to hifi*/
 		ret = hifi_dsp_write_param((unsigned long)data32);
 		break;
 
@@ -1008,6 +1037,7 @@ static long hifi_misc_ioctl(struct file *fd, unsigned int cmd,
 		logi("ioctl: HIFI_MISC_IOCTL_WAKEUP_THREAD.\n");
 		ret = hifi_dsp_wakeup_read_thread((unsigned long)data32);
 		break;
+
 	case HIFI_MISC_IOCTL_WAKEUP_PCM_READ_THREAD:
 		logi("ioctl: HIFI_MISC_IOCTL_WAKEUP_PCM_READ_THREAD.\n");
 		ret = hifi_dsp_wakeup_pcm_read_thread((unsigned long)data32);
