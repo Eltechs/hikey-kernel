@@ -38,6 +38,16 @@
 
 	overlay_mgr {
 		compatible = "linux,overlay_manager";
+		hardware_cfg_spidev0 {
+			overlay_0 {
+				fragment@0 {
+					target-path="/soc/spi@ffd68000/spidev@0";
+					__overlay__ {
+						status = "ok";
+					};
+				};
+			};
+		};
 		hardware_cfg_neonkey {
 			overlay_0 {
 				fragment@0 {
@@ -314,6 +324,13 @@
 	/* On Low speed expansion */
 	label = "LS-SPI0";
 	status = "okay";
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <500000>;
+		reg = <0>;
+		status = "disabled";
+	};
 
 	sensorhub@0 {
 		compatible = "nanohub";
