@@ -45,7 +45,7 @@
 
 	uart_overlay@0 {
 		fragment@0 {
-			target-path="/soc/uart@fff32000";
+			target-path="/soc/serial@fff32000";
 			__overlay__ {
 				status = "disabled";
 			};
