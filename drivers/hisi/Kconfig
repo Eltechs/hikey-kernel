@@ -9,6 +9,7 @@ menuconfig HISILICON_PLATFORM
 if HISILICON_PLATFORM
 
 source "drivers/hisi/mailbox/Kconfig"
+source "drivers/hisi/hifi_dsp/Kconfig"
 
 endif #HISILICON_PLATFORM
 
