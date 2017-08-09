@@ -1,0 +1,1 @@
+source "drivers/hisi/hifi_mailbox/ipcm/Kconfig"
