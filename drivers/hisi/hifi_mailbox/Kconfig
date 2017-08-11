@@ -1,1 +1,3 @@
+
+source "drivers/hisi/hifi_mailbox/mailbox/Kconfig"
 source "drivers/hisi/hifi_mailbox/ipcm/Kconfig"
