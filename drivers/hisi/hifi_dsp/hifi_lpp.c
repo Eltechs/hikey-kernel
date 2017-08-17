@@ -28,7 +28,6 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/gfp.h>
-#include <linux/wakelock.h>
 #include <linux/errno.h>
 #include <linux/of_address.h>
 #include <linux/mm.h>
@@ -91,8 +90,8 @@ struct hifi_misc_priv {
 	int pcm_read_wait_flag;
 	unsigned int sn;
 
-	struct wake_lock hifi_misc_wakelock;
-	struct wake_lock update_buff_wakelock;
+	struct wakeup_source	hifi_misc_wakesrc;
+	struct wakeup_source	update_buff_wakesrc;
 
 	unsigned char *hifi_priv_base_virt;
 	unsigned char *hifi_priv_base_phy;
@@ -350,7 +349,7 @@ static void hifi_misc_mesg_process(void *cmd)
 		list_add_tail(&dp_clk_cmd->dp_clk_node,
 			      &(s_misc_data.multi_mic_ctrl.cmd_queue));
 		spin_unlock_bh(&(s_misc_data.multi_mic_ctrl.cmd_lock));
-		wake_lock_timeout(&s_misc_data.hifi_misc_wakelock, HZ / 2);
+		__pm_wakeup_event(&s_misc_data.hifi_misc_wakesrc, 500);
 		if (queue_work(s_misc_data.multi_mic_ctrl.reset_audio_dp_clk_wq,
 			       &s_misc_data.multi_mic_ctrl.
 			       reset_audio_dp_clk_work))
@@ -438,8 +437,7 @@ static void hifi_misc_handle_mail(void *usr_para, void *mail_handle,
 		   && (ACPU_TO_HIFI_ASYNC_CMD == cmd_para->sn)) {
 		if (ID_AUDIO_AP_PLAY_DONE_IND == *((unsigned short *)recmsg)) {
 			/* only mesg ID_AUDIO_AP_PLAY_DONE_IND lock 5s */
-			wake_lock_timeout(&s_misc_data.update_buff_wakelock,
-					  5 * HZ);
+			__pm_wakeup_event(&s_misc_data.update_buff_wakesrc, 5000);
 
 			spin_lock_bh(&s_misc_data.recv_proc_lock);
 			list_add_tail(&recv->recv_node,
@@ -641,7 +639,7 @@ static int hifi_dsp_async_cmd(unsigned long arg)
 	}
 
 	if (ID_AP_AUDIO_PLAY_UPDATE_BUF_CMD == *(unsigned short *)para_krn_in) {
-		wake_unlock(&s_misc_data.update_buff_wakelock);
+		__pm_relax(&s_misc_data.update_buff_wakesrc);
 	}
 
  END:
@@ -804,7 +802,7 @@ static int hifi_dsp_wakeup_read_thread(unsigned long arg)
 	}
 	memset(recv, 0, sizeof(struct recv_request));
 
-	wake_lock_timeout(&s_misc_data.hifi_misc_wakelock, HZ);
+	__pm_wakeup_event(&s_misc_data.hifi_misc_wakesrc, 1000);
 
 	recv->rev_msg.mail_buff_len =
 	    sizeof(struct misc_recmsg_param) + SIZE_CMD_ID;
@@ -1580,10 +1578,8 @@ static int hifi_misc_probe(struct platform_device *pdev)
 
 	s_misc_data.sn = 0;
 
-	wake_lock_init(&s_misc_data.hifi_misc_wakelock, WAKE_LOCK_SUSPEND,
-		       "hifi_wakelock");
-	wake_lock_init(&s_misc_data.update_buff_wakelock, WAKE_LOCK_SUSPEND,
-		       "update_buff_wakelock");
+	wakeup_source_init(&s_misc_data.hifi_misc_wakesrc, "hifi_wakelock");
+	wakeup_source_init(&s_misc_data.update_buff_wakesrc, "update_buff_wakelock");
 
 	ret = DRV_IPCIntInit();
 	if (OK != ret) {
@@ -1670,8 +1666,8 @@ static int hifi_misc_remove(struct platform_device *pdev)
 	(void)misc_deregister(&hifi_misc_device);
 
 	/* wake lock destroy */
-	wake_lock_destroy(&s_misc_data.hifi_misc_wakelock);
-	wake_lock_destroy(&s_misc_data.update_buff_wakelock);
+	wakeup_source_trash(&s_misc_data.hifi_misc_wakesrc);
+	wakeup_source_trash(&s_misc_data.update_buff_wakesrc);
 
 	OUT_FUNCTION;
 	return OK;

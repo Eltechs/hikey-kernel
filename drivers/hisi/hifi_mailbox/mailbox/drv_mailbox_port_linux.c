@@ -11,9 +11,9 @@
 #include <linux/delay.h>
 #include <linux/freezer.h>
 #include <linux/completion.h>
-#include <linux/wakelock.h>
 #include <linux/wait.h>
 #include <linux/spinlock.h>
+#include <linux/device.h>
 
 #include "drv_mailbox_cfg.h"
 #include "drv_mailbox_debug.h"
@@ -80,7 +80,7 @@ struct mb_mutex {
 	unsigned int type;
 };
 
-static struct wake_lock mb_lpwr_lock;
+static struct wakeup_source mb_lpwr_lock;
 
 MAILBOX_LOCAL struct mb_local_proc g_mailbox_local_proc_tbl[] = {
 	{"mailboxNormal", MAILBOX_RECV_TASK_NORMAL, 86, 0,},
@@ -145,7 +145,7 @@ MAILBOX_LOCAL void mailbox_receive_process(unsigned long data)
 		}
 		work = work->next;
 	}
-	wake_unlock(&mb_lpwr_lock);
+	__pm_relax(&mb_lpwr_lock);
 }
 
 MAILBOX_LOCAL int mailbox_receive_task(void *data)
@@ -177,8 +177,7 @@ MAILBOX_EXTERN int mailbox_init_platform(void)
 	unsigned int proc_id;
 	struct task_struct *task = MAILBOX_NULL;
 
-	wake_lock_init(&mb_lpwr_lock, WAKE_LOCK_SUSPEND,
-		       "mailbox_low_power_wake_lock");
+	wakeup_source_init(&mb_lpwr_lock, "mailbox_low_power_wake_lock");
 
 	while (count) {
 		proc_id = local_proc->proc_id;
@@ -224,7 +223,7 @@ MAILBOX_LOCAL int mailbox_ipc_process(struct mb_local_work *local_work,
 			local_work->data_flag = MAILBOX_TRUE;
 
 			mailbox_record_sche_send(local_work->mb_priv);
-			wake_lock(&mb_lpwr_lock);
+			__pm_stay_awake(&mb_lpwr_lock);
 
 			if ((proc_id > MAILBOX_RECV_TASK_START)
 			    && (proc_id < MAILBOX_RECV_TASK_END)) {
