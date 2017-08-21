@@ -93,6 +93,11 @@
 			reusable;
 		};
 
+		uefi-reboot-mode {
+			reg = <0x0 0x32100000 0x0 0x00001000>;
+			no-map;
+		};
+
 		bl31 {
 			reg = <0x0 0x20200000 0x0 0x200000>;
 			no-map;
