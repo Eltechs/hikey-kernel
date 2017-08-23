@@ -2,7 +2,6 @@
 #define __MNTN_PUBLIC_INTERFACE_H__
 #include "soc_acpu_baseaddr_interface.h"
 #include "global_ddr_map.h"
-#include <linux/hisi/pmic_interface.h>
 typedef unsigned long long u64;
 typedef unsigned int u32;
 #define PMU_RESET_REG_OFFSET (PMIC_HRST_REG0_ADDR(0)<<2)
