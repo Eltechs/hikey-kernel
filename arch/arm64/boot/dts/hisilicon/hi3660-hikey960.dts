@@ -160,6 +160,17 @@
 		ftrace-size	= <0x0 0x00020000>;
 	};
 
+	pclk: apb_pclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+		clock-output-names = "apb_pclk";
+	};
+
+	hifidsp {
+		compatible = "hisilicon,k3hifidsp";
+	};
+
 	keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -402,17 +413,6 @@
 					<7 0x08060000 0x20000>;
 		sensorhub,num-flash-banks = <6>;
 		status = "disabled";
-	};
-
-	pclk: apb_pclk {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <20000000>;
-		clock-output-names = "apb_pclk";
-	};
-
-	hifidsp {
-		compatible = "hisilicon,k3hifidsp";
 	};
 };
 
