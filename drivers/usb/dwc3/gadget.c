@@ -1405,6 +1405,9 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 
 out1:
 	/* giveback the request */
+	if (!dep->queued_requests)
+		goto out0;
+
 	dep->queued_requests--;
 	dwc3_gadget_giveback(dep, req, -ECONNRESET);
 
