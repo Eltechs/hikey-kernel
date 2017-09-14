@@ -891,7 +891,8 @@ static void hikey_ap2dsp_write_msg(struct hikey_ap2dsp_msg_body *hikey_msg)
 }
 
 /*Interrupt receiver */
-#define IPC_ACPU_INT_SRC_HIFI_MSG  (1)
+#define IPC_ACPU_INT_SRC_HIFI_MSG	(1)
+#define K3_SYS_IPC_CORE_HIFI		(4)
 typedef void (*VOIDFUNCCPTR)(unsigned int);
 static void _dsp_to_ap_ipc_irq_proc(void)
 {
@@ -952,7 +953,6 @@ int read_xaf_ipc_msg_from_dsp(void *buf, unsigned int size)
 	return ret;
 }
 
-
 static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 {
 	int           ret     = OK;
@@ -968,8 +968,7 @@ static int hifi_send_str_todsp(const char *cmd_str, size_t size)
 	hikey_msg->msg_content[size] = 0;
 
 	hikey_ap2dsp_write_msg(hikey_msg);
-	ret = (int)mailbox_send_msg(MAILBOX_MAILCODE_ACPU_TO_HIFI_MISC, hikey_msg, hikey_msg->msg_len);
-
+	ret = (int)IPC_IntSend(K3_SYS_IPC_CORE_HIFI,0);
 	kfree(hikey_msg);
 	return ret;
 }
@@ -994,8 +993,10 @@ int send_pcm_data_to_dsp(void __user *buf, unsigned int size)
 	sprintf(cmd, "pcm_gain 0x%08x 0x%08x", HIFI_MUSIC_DATA_LOCATION, size);
 	ret = hifi_send_str_todsp(cmd, strlen(cmd));
 
-	if (ret < 0)
+	if (ret < 0) {
+		loge("%s: couldn't send message to DSP\n", __func__);
 		return ret;
+	}
 
 	wait_for_completion(&msg_completion);
 	pcm_buf  = (unsigned char *)ioremap_wc(PCM_PLAY_BUFF_LOCATION, PCM_PLAY_BUFF_SIZE);
