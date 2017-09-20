@@ -424,10 +424,10 @@ static void adv7511_hpd_work(struct work_struct *work)
 	else
 		status = connector_status_disconnected;
 
-	if (adv7511->connector.status != status)
+	if (adv7511->connector.status != status) {
+		adv7511->connector.status = status;
 		drm_kms_helper_hotplug_event(adv7511->connector.dev);
-
-	adv7511->connector.status = status;
+	}
 }
 
 static int adv7511_irq_process(struct adv7511 *adv7511, bool process_hpd)
