@@ -83,6 +83,16 @@
 				};
 			};
 		};
+		hardware_cfg_disable_bt {
+			overlay_0 {
+				fragment@0 {
+					target-path="/soc/serial@fdf01000/bluetooth";
+					__overlay__ {
+						status = "disabled";
+					};
+				};
+			};
+		};
 	};
 
 	memory@0 {
