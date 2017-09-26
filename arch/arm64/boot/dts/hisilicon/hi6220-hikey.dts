@@ -117,6 +117,16 @@
 				};
 			};
 		};
+		hardware_cfg_disable_bt {
+			overlay_0 {
+				fragment@0 {
+					target-path="/soc/uart@f7111000/bluetooth";
+					__overlay__ {
+						status = "disabled";
+					};
+				};
+			};
+		};
 		hardware_cfg_cs_sd_qb {
 			overlay_0 {
 				fragment@0 { /* Select SD from Quick Bus */
