@@ -645,12 +645,28 @@ static int adv7511_mode_valid(struct adv7511 *adv7511,
 	DRM_DEBUG("Checking mode %ix%i@%i clock: %i...",
 		  mode->hdisplay, mode->vdisplay, drm_mode_vrefresh(mode), mode->clock);
 	if ((mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 148500) ||
-	    (mode->hdisplay == 1280 && mode->vdisplay == 800 && mode->clock == 83496) ||
-	    (mode->hdisplay == 1280 && mode->vdisplay == 720 && mode->clock == 74440) ||
-	    (mode->hdisplay == 1280 && mode->vdisplay == 720 && mode->clock == 74250) ||
-	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 75000) ||
-	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 81833) ||
-	    (mode->hdisplay == 800 && mode->vdisplay == 600 && mode->clock == 40000)) {
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 148352) ||
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 80192)  ||
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 74250)  ||
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 61855)  ||
+	    (mode->hdisplay == 1680 && mode->vdisplay == 1050 && mode->clock == 147116) ||
+	    (mode->hdisplay == 1680 && mode->vdisplay == 1050 && mode->clock == 146250) ||
+	    (mode->hdisplay == 1680 && mode->vdisplay == 1050 && mode->clock == 144589) ||
+	    (mode->hdisplay == 1600 && mode->vdisplay == 1200 && mode->clock == 160961) ||
+	    (mode->hdisplay == 1600 && mode->vdisplay == 900  && mode->clock == 118963) ||
+	    (mode->hdisplay == 1440 && mode->vdisplay == 900  && mode->clock == 126991) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 1024 && mode->clock == 128946) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 1024 && mode->clock == 98619)  ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 960  && mode->clock == 102081) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 800  && mode->clock == 83496)  ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 720  && mode->clock == 74440)  ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 720  && mode->clock == 74250)  ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768  && mode->clock == 78800)  ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768  && mode->clock == 75000)  ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768  && mode->clock == 81833)  ||
+	    (mode->hdisplay == 800  && mode->vdisplay == 600  && mode->clock == 48907)  ||
+	    (mode->hdisplay == 800  && mode->vdisplay == 600  && mode->clock == 40000)  ||
+	    (mode->hdisplay == 800  && mode->vdisplay == 480  && mode->clock == 32000)) {
 		mode->type |= DRM_MODE_TYPE_PREFERRED;
 		DRM_DEBUG("OK\n");
 		return MODE_OK;
